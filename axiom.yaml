@@ -1,6 +1,46 @@
 name: christiangeorgelucas/github-actions-tools
 version: 0.1.0
 language: typescript
+description: >-
+  Deterministic, GitHub-Actions-SEMANTIC parsing and inspection of GitHub
+  Actions workflow YAML (.github/workflows/*.yml) — distinct from generic
+  YAML/JSON conversion (dataformat-tools) and other config-file packages
+  (config-tools, dockerfile-tools, k8s-manifest-tools): understands the
+  on:/jobs:/steps:/uses:/strategy:/permissions: workflow schema and pulls
+  out exactly what a CI/CD-auditing agent needs. Parse the top-level
+  structure (name, triggers, jobs); extract every trigger event + filters;
+  list every job's full attributes (runs-on, needs, if, timeout,
+  environment, concurrency, container, permissions); extract one job's
+  steps with shell/working-directory resolved through the defaults.run
+  fallback chain; extract every third-party action reference (owner/repo/
+  ref, classified SHA-pinned vs floating vs local-path vs Docker-image —
+  the key node for supply-chain auditing); extract the job dependency graph
+  as an edge list; extract a job's matrix strategy; extract every
+  secrets.* reference (names only, never values); extract every env:
+  block; normalize every permissions: block; extract every run: command;
+  detect runner OSes; extract reusable-workflow calls; summarize job/step/
+  trigger counts; validate basic structural correctness; and detect three
+  security patterns as structured FACTS (unpinned actions,
+  pull_request_target usage, secrets embedded in run: commands) — never
+  opinionated lint. Wraps js-yaml (MIT), SAFE by default (CORE_SCHEMA — no
+  code-executing tags since v4+), bounded with explicit maxDepth/maxAliases
+  and a 2 MB ceiling; all GitHub-Actions-schema knowledge is this package's
+  own code. Workflow text is always caller-supplied — no GitHub API, no
+  git checkout, no network, no wall-clock, no randomness. Malformed or
+  oversized input returns a structured error, never a crash.
+author: Christian George Lucas
+license: MIT
+tags:
+    - github-actions
+    - github
+    - ci-cd
+    - workflow
+    - yaml
+    - js-yaml
+    - supply-chain
+    - security
+    - devops
+    - static-analysis
 nodes:
     - name: ParseWorkflow
       description: 'Parse a GitHub Actions workflow file into its top-level structure: declared name, on: trigger event names, and a brief per-job summary (id, name, runs-on, needs, reusable-call flag, step count).'
