@@ -1,0 +1,18 @@
+name: validate-then-triggers
+description: Sanity flow within github-actions-tools proving the shared Workflow envelope composes — ValidateWorkflow gates malformed input before ExtractTriggers runs on the same yaml text.
+nodes:
+  - alias: validated
+    package: christiangeorgelucas/github-actions-tools@0.1.0
+    node: ValidateWorkflow
+    col: 0
+    row: 0
+  - alias: triggers
+    package: christiangeorgelucas/github-actions-tools@0.1.0
+    node: ExtractTriggers
+    col: 1
+    row: 0
+edges:
+  - from: validated
+    to: triggers
+    adapter:
+      "literal('placeholder')": yaml
