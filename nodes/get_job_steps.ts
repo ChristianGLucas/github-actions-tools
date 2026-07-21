@@ -27,8 +27,11 @@ function kvMessages(pairs: { key: string; value: string }[]): KeyValue[] {
  * step), the effective `shell:`/`working-directory:` resolved through the
  * documented step -> job -> workflow defaults.run fallback chain, `with:`
  * inputs, `env:`, `if:`, `continue-on-error:`, and `timeout-minutes:`.
- * found is false when job_id names a job that does not exist in the
- * workflow, or the job has no `steps:` (a reusable-workflow-call job).
+ * found is true whenever job_id names a job that exists in the workflow —
+ * including a reusable-workflow-call job, which simply has zero steps
+ * (steps comes back as an empty list, not an error, since "this job has no
+ * steps because it's a reusable call" is itself useful information). found
+ * is false only when job_id names a job that does not exist at all.
  *
  * @param ax - Platform context: ax.log for logging, ax.secrets for secrets.
  */
