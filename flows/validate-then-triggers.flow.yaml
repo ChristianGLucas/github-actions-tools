@@ -1,18 +1,22 @@
 name: validate-then-triggers
-description: Sanity flow within github-actions-tools proving the shared Workflow envelope composes — ValidateWorkflow gates malformed input before ExtractTriggers runs on the same yaml text.
+description: 'Composability smoke flow within github-actions-tools. ValidateWorkflow gates the pipeline on structural validity (a real, meaningful pattern — don''t bother extracting triggers from a workflow that fails basic structural checks); the edge condition proves ValidateWorkflowResult.valid resolves correctly through the compiler against this package''s REAL, registry-resolved schema. NOTE: this package''s nodes are independent text-in/facts-out analyzers of the SAME caller-supplied yaml — none re-emits the workflow text (unlike, e.g., k8s-manifest-tools'' GetResource), so ExtractTriggers'' own yaml input here is a literal constant, not a field pass-through from ValidateWorkflow''s output. In a real agent pipeline these nodes are typically invoked in PARALLEL on the same source text rather than chained serially.'
 nodes:
-  - alias: validated
-    package: christiangeorgelucas/github-actions-tools@0.1.0
-    node: ValidateWorkflow
-    col: 0
-    row: 0
-  - alias: triggers
-    package: christiangeorgelucas/github-actions-tools@0.1.0
-    node: ExtractTriggers
-    col: 1
-    row: 0
+    - alias: validated
+      package: christiangeorgelucas/github-actions-tools@0.1.0
+      node: ValidateWorkflow
+      col: 0
+      row: 0
+    - alias: triggers
+      package: christiangeorgelucas/github-actions-tools@0.1.0
+      node: ExtractTriggers
+      col: 1
+      row: 0
 edges:
-  - from: validated
-    to: triggers
-    adapter:
-      "literal('placeholder')": yaml
+    - from: validated
+      to: triggers
+      adapter:
+        'literal(''{on: push, jobs: {build: {runs-on: ubuntu-latest, steps: [{run: echo hi}]}}}'')': yaml
+      condition:
+        op: EQ
+        field: valid
+        value: true
