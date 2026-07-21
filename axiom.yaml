@@ -1,0 +1,68 @@
+name: christiangeorgelucas/github-actions-tools
+version: 0.1.0
+language: typescript
+nodes:
+    - name: ParseWorkflow
+      description: 'Parse a GitHub Actions workflow file into its top-level structure: declared name, on: trigger event names, and a brief per-job summary (id, name, runs-on, needs, reusable-call flag, step count).'
+      input: Workflow
+      output: ParseWorkflowResult
+    - name: ExtractTriggers
+      description: 'Extract every event under a workflow''s on: key with its filters — push/pull_request branches/tags/paths(-ignore), types, schedule''s cron expressions, and workflow_dispatch/workflow_call''s declared input names.'
+      input: Workflow
+      output: ExtractTriggersResult
+    - name: ListJobs
+      description: 'List every job in a workflow with its full attribute set: id, name, runs-on, needs, if, timeout, continue-on-error, environment, concurrency, container image, reusable-call target, permissions, and step count.'
+      input: Workflow
+      output: ListJobsResult
+    - name: GetJobSteps
+      description: 'Extract one job''s steps in order: id, name, uses or run, resolved shell and working-directory, with-inputs, env, if, continue-on-error, and timeout.'
+      input: JobRequest
+      output: GetJobStepsResult
+    - name: ExtractActions
+      description: 'Extract every third-party action referenced via uses: across the whole workflow, decomposed into owner/repo/sub_path/ref, and classified as SHA-pinned vs floating (tag or branch) vs a local path vs a Docker image — the key node for supply-chain auditing.'
+      input: Workflow
+      output: ExtractActionsResult
+    - name: ExtractJobDependencies
+      description: Extract the workflow's job dependency graph as an edge list (job needs depends_on), plus the full set of job ids, ready for topological analysis.
+      input: Workflow
+      output: ExtractJobDependenciesResult
+    - name: ExtractMatrixStrategy
+      description: 'Extract one job''s strategy.matrix: each dimension''s key and raw value list, include/exclude combinations, and fail-fast/max-parallel settings.'
+      input: JobRequest
+      output: ExtractMatrixStrategyResult
+    - name: ExtractSecretsUsage
+      description: Extract every secrets.<NAME> reference used anywhere in the workflow (env, with, run, if, container, concurrency), tagged with its job/step location — for secret-usage auditing. Never resolves or reports a secret's value.
+      input: Workflow
+      output: ExtractSecretsUsageResult
+    - name: ExtractEnvVars
+      description: 'Extract every env: variable declared at workflow level, per job, and per step across the workflow.'
+      input: Workflow
+      output: ExtractEnvVarsResult
+    - name: ExtractPermissions
+      description: 'Extract the workflow-level permissions: block and every job-level permissions: block, each normalized to its mode (unspecified/read-all/write-all/none/scoped) plus scoped entries.'
+      input: Workflow
+      output: ExtractPermissionsResult
+    - name: ExtractRunCommands
+      description: 'Extract every run: shell script across the workflow, tagged with its job/step location and resolved effective shell.'
+      input: Workflow
+      output: ExtractRunCommandsResult
+    - name: DetectRunners
+      description: Detect which runner labels (runs-on values) each job uses, flag matrix-driven/dynamic runs-on, and list every distinct literal label used across the workflow.
+      input: Workflow
+      output: DetectRunnersResult
+    - name: ExtractReusableWorkflowCalls
+      description: 'Extract every job-level uses: reusable-workflow call (workflow_call), decomposed like ExtractActions plus its with-inputs and secrets: inherit/explicit-map.'
+      input: Workflow
+      output: ExtractReusableWorkflowCallsResult
+    - name: SummarizeWorkflow
+      description: 'Summarize a workflow: job count, total step count, trigger event count, action-step invocations (total and distinct), run-step count, and reusable-workflow-call count.'
+      input: Workflow
+      output: SummarizeWorkflowResult
+    - name: ValidateWorkflow
+      description: 'Validate a workflow''s basic structural correctness: has on:, has jobs:, and each job has runs-on: or a job-level uses:. Reports every violation found, not just the first.'
+      input: Workflow
+      output: ValidateWorkflowResult
+    - name: DetectSecurityPatterns
+      description: 'Detect security-relevant patterns as structured facts, never opinionated lint: unpinned (non-SHA) third-party actions, pull_request_target trigger usage, and secrets.* references embedded directly in run: script text.'
+      input: Workflow
+      output: DetectSecurityPatternsResult

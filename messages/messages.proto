@@ -1,0 +1,501 @@
+// This file defines the data contracts (messages) for your Axiom package.
+// Every node's --input and --output refers to a message defined here.
+//
+// Run `axiom create message <Name>` to scaffold a new message below.
+// Run `axiom generate` to compile these definitions into language bindings in gen/.
+//
+// DOCUMENTATION
+//   Comments written directly above a message or field declaration are extracted
+//   automatically at publish time and shown in the Axiom registry as documentation.
+//   Write your descriptions there — no separate doc files needed.
+//
+//   Leading comment  (no blank line before the declaration) → registry description ✓
+//   Detached comment (blank line before the declaration)    → ignored by registry  ✗
+//
+// This file is yours to edit. Axiom only appends new message blocks — it never
+// overwrites or removes content you have written.
+
+syntax = "proto3";
+
+package christiangeorgelucas.github_actions_tools;
+
+// A raw GitHub Actions workflow file as caller-supplied YAML text (the
+// contents of a `.github/workflows/*.yml` file) — one single YAML document.
+// Text only; never a repo/path/ref reference (this package never touches
+// the GitHub API, a git checkout, or the network — the caller always
+// supplies the file's text directly).
+message Workflow {
+  string yaml = 1;
+}
+
+// A Workflow plus a target job id (the job's key in the top-level `jobs:`
+// map) for nodes that operate on one job at a time.
+message JobRequest {
+  string yaml = 1;
+  string job_id = 2;
+}
+
+// A generic string key/value pair — reused for `with:` inputs, `env:`
+// entries, and matrix-combination entries, which all share the same
+// map[string]string-ish shape.
+message KeyValue {
+  string key = 1;
+  string value = 2;
+}
+
+// A structural or parse problem found while inspecting a workflow, with a
+// short JSON-Pointer-ish path (e.g. "jobs.build", "jobs.build.steps[2]")
+// identifying where it applies.
+message WorkflowIssue {
+  string path = 1;
+  string message = 2;
+}
+
+// ---------------------------------------------------------------------------
+// ParseWorkflow — top-level structural overview
+// ---------------------------------------------------------------------------
+
+// One job's brief identity, as surfaced in the whole-workflow overview
+// (ParseWorkflow). For a job's full attribute set use ListJobs instead.
+message JobBrief {
+  string job_id = 1;
+  // Defaults to job_id when the job sets no `name:`.
+  string name = 2;
+  // Raw runs-on label(s), in document order. A single string `runs-on:
+  // ubuntu-latest` becomes one entry; `runs-on: [self-hosted, linux]`
+  // becomes several; a matrix expression (`runs-on: ${{ matrix.os }}`)
+  // becomes one entry holding the raw, unevaluated expression text.
+  repeated string runs_on = 3;
+  // Job ids this job's `needs:` lists, in document order.
+  repeated string needs = 4;
+  // True when this job calls a reusable workflow (`uses:` at the job
+  // level) instead of declaring its own `steps:`.
+  bool is_reusable_call = 5;
+  int32 step_count = 6;
+}
+
+message ParseWorkflowResult {
+  // The workflow's declared `name:`, or "" if unset (GitHub then falls
+  // back to the file path, which this package cannot know).
+  string name = 1;
+  // Event names from the top-level `on:` key, in document order (e.g.
+  // "push", "pull_request", "schedule", "workflow_dispatch").
+  repeated string trigger_events = 2;
+  repeated JobBrief jobs = 3;
+  // Set only for a whole-document failure (oversized input, unparseable
+  // YAML, not a mapping, or missing/malformed `on:`/`jobs:`). Empty on
+  // success, even when the workflow is otherwise unusual.
+  string error = 4;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractTriggers
+// ---------------------------------------------------------------------------
+
+// One event under the workflow's top-level `on:` key, with whichever
+// filter fields that event type actually supports (unsupported fields are
+// simply left at their zero value — never an error).
+message TriggerEvent {
+  // "push" | "pull_request" | "pull_request_target" | "schedule" |
+  // "workflow_dispatch" | "workflow_call" | "release" | "issues" | ... —
+  // the raw event key as written under `on:`.
+  string event = 1;
+  repeated string branches = 2;
+  repeated string branches_ignore = 3;
+  repeated string tags = 4;
+  repeated string tags_ignore = 5;
+  repeated string paths = 6;
+  repeated string paths_ignore = 7;
+  // `types:` filter (e.g. pull_request's opened/synchronize/reopened).
+  repeated string types = 8;
+  // `schedule:`'s list of cron expressions (schedule is the only event
+  // shaped as a list of {cron} objects rather than a filter map).
+  repeated string cron_schedules = 9;
+  // Declared input/secret NAMES for workflow_dispatch (`inputs:`) or
+  // workflow_call (`inputs:` + `secrets:`) — names only, never values,
+  // since these are schema declarations, not caller-supplied data.
+  repeated string declared_inputs = 10;
+}
+
+message ExtractTriggersResult {
+  repeated TriggerEvent triggers = 1;
+  // Set only for a whole-document failure. A workflow with a genuinely
+  // empty/malformed `on:` value yields zero triggers, not an error.
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// ListJobs — the dedicated, full-attribute job registry
+// ---------------------------------------------------------------------------
+
+// A permissions block, however it was declared: a bare "read-all"/
+// "write-all"/"{}" (empty-object) shorthand, or a scoped map of
+// permission -> level. mode captures which shorthand (if any) applied;
+// scopes is populated only for mode == "scoped".
+message PermissionsBlock {
+  // "unspecified" (key absent) | "read-all" | "write-all" | "none"
+  // (written as `permissions: {}`) | "scoped" (a map of scope -> level).
+  string mode = 1;
+  repeated KeyValue scopes = 2;
+}
+
+message JobInfo {
+  string job_id = 1;
+  string name = 2;
+  repeated string runs_on = 3;
+  repeated string needs = 4;
+  // Raw, unevaluated `if:` expression text; "" when unset (an unset `if:`
+  // defaults to `success()`, which this package does not synthesize).
+  string if_condition = 5;
+  int32 timeout_minutes = 6;
+  bool timeout_minutes_specified = 7;
+  bool continue_on_error = 8;
+  bool continue_on_error_specified = 9;
+  // `environment:`'s name, whether declared as a bare string or as
+  // {name, url}. "" when unset.
+  string environment_name = 10;
+  string concurrency_group = 11;
+  bool concurrency_cancel_in_progress = 12;
+  bool concurrency_specified = 13;
+  // `container:`'s image, whether declared as a bare string or as
+  // {image, ...}. "" when unset.
+  string container_image = 14;
+  bool is_reusable_call = 15;
+  // `uses:` value when is_reusable_call is true; "" otherwise.
+  string reusable_workflow_ref = 16;
+  PermissionsBlock permissions = 17;
+  int32 step_count = 18;
+}
+
+message ListJobsResult {
+  repeated JobInfo jobs = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// GetJobSteps
+// ---------------------------------------------------------------------------
+
+// One step within a job's `steps:` list.
+message StepInfo {
+  // 0-based position within the job's steps list.
+  int32 index = 1;
+  // The step's own `id:`, if set (used by later steps' `${{ steps.<id>.* }}`
+  // expressions); "" when unset.
+  string step_id = 2;
+  // Defaults to "" when the step sets no `name:` (GitHub then displays the
+  // `uses:`/`run:` value instead, which this package does not synthesize).
+  string name = 3;
+  // The `uses:` value for an action step; "" for a run step.
+  string uses = 4;
+  // The `run:` script text for a run step; "" for a uses step.
+  string run = 5;
+  // Effective shell for a run step, resolved through the documented
+  // fallback chain step.shell -> job.defaults.run.shell ->
+  // workflow.defaults.run.shell. "" when none of the three set it (GitHub
+  // then falls back to bash/pwsh by OS, which this package does not infer).
+  string shell = 6;
+  // `with:` inputs for a uses step (action inputs); empty for a run step.
+  repeated KeyValue with = 7;
+  repeated KeyValue env = 8;
+  string if_condition = 9;
+  bool continue_on_error = 10;
+  bool continue_on_error_specified = 11;
+  int32 timeout_minutes = 12;
+  bool timeout_minutes_specified = 13;
+  // Resolved the same way as shell (step -> job -> workflow defaults.run).
+  string working_directory = 14;
+}
+
+message GetJobStepsResult {
+  bool found = 1;
+  repeated StepInfo steps = 2;
+  // Set for a whole-document failure OR when job_id names a job that does
+  // not exist in the workflow (found stays false in the latter case).
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractActions — third-party action supply-chain inventory
+// ---------------------------------------------------------------------------
+
+// One `uses:` reference found on an action step, decomposed into its
+// owner/repo/ref (or flagged as a local path / Docker image reference,
+// neither of which has an owner/repo/ref shape).
+message ActionRef {
+  string job_id = 1;
+  int32 step_index = 2;
+  string step_name = 3;
+  // The raw, unmodified `uses:` string.
+  string raw_uses = 4;
+  // Populated only for an "owner/repo[/sub_path]@ref"-shaped reference.
+  string owner = 5;
+  string repo = 6;
+  // Populated when the reference points at a sub-directory action within
+  // the repo (owner/repo/sub_path@ref); "" otherwise.
+  string sub_path = 7;
+  string ref = 8;
+  // "sha" when ref is a 40-character hex commit SHA (the only pinning
+  // form this package can verify without calling the GitHub API);
+  // "floating" for anything else non-empty (a tag or branch name — this
+  // package cannot distinguish the two without network access); "" when
+  // raw_uses carries no @ref at all.
+  string ref_kind = 9;
+  bool is_sha_pinned = 10;
+  // True for a `uses: ./local/action` (repo-relative) reference — no
+  // owner/repo/ref, not a supply-chain concern.
+  bool is_local_path = 11;
+  // True for a `uses: docker://image[:tag]` reference.
+  bool is_docker = 12;
+  // Populated only when is_docker is true.
+  string docker_image = 13;
+}
+
+message ExtractActionsResult {
+  repeated ActionRef actions = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractJobDependencies — the needs: graph, edge-list shaped
+// ---------------------------------------------------------------------------
+
+// One `needs:` edge: job_id depends on (runs after) depends_on.
+message JobDependencyEdge {
+  string job_id = 1;
+  string depends_on = 2;
+}
+
+message ExtractJobDependenciesResult {
+  // Every job id in the workflow, in document order — including jobs with
+  // no `needs:` at all, so a caller can tell "no dependents" apart from
+  // "job not in this workflow".
+  repeated string job_ids = 1;
+  repeated JobDependencyEdge edges = 2;
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractMatrixStrategy
+// ---------------------------------------------------------------------------
+
+// One `strategy.matrix` dimension: a key mapped to its list of raw
+// (stringified) scalar values.
+message MatrixDimension {
+  string key = 1;
+  repeated string values = 2;
+}
+
+// One `strategy.matrix.include`/`exclude` entry — an explicit combination
+// of key/value pairs.
+message MatrixCombination {
+  repeated KeyValue entries = 1;
+}
+
+message ExtractMatrixStrategyResult {
+  // False when job_id has no `strategy:` at all, or the job doesn't exist
+  // (see error).
+  bool found = 1;
+  bool has_matrix = 2;
+  repeated MatrixDimension dimensions = 3;
+  repeated MatrixCombination include = 4;
+  repeated MatrixCombination exclude = 5;
+  bool fail_fast = 6;
+  bool fail_fast_specified = 7;
+  int32 max_parallel = 8;
+  bool max_parallel_specified = 9;
+  string error = 10;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractSecretsUsage
+// ---------------------------------------------------------------------------
+
+// One `secrets.<NAME>` reference found in an expression somewhere in the
+// workflow. Only the secret's NAME is ever captured — never a value (no
+// value exists to capture; `secrets.*` resolves at run time, outside this
+// package's reach).
+message SecretReference {
+  // "" for a workflow-level reference (e.g. workflow-level `env:`).
+  string job_id = 1;
+  // -1 when the reference is not inside a specific step.
+  int32 step_index = 2;
+  // Where the reference was found: "env" | "with" | "run" | "if" |
+  // "container" | "concurrency" | "secrets" (the last is a reusable-
+  // workflow-call job's own explicit `secrets:` map).
+  string location = 3;
+  string secret_name = 4;
+  // The full matched expression text, e.g. "${{ secrets.NPM_TOKEN }}".
+  string raw_expression = 5;
+}
+
+message ExtractSecretsUsageResult {
+  repeated SecretReference references = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractEnvVars
+// ---------------------------------------------------------------------------
+
+message JobEnv {
+  string job_id = 1;
+  repeated KeyValue env = 2;
+}
+
+message StepEnv {
+  string job_id = 1;
+  int32 step_index = 2;
+  string step_name = 3;
+  repeated KeyValue env = 4;
+}
+
+message ExtractEnvVarsResult {
+  repeated KeyValue workflow_env = 1;
+  repeated JobEnv job_env = 2;
+  repeated StepEnv step_env = 3;
+  string error = 4;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractPermissions
+// ---------------------------------------------------------------------------
+
+message JobPermissions {
+  string job_id = 1;
+  PermissionsBlock permissions = 2;
+}
+
+message ExtractPermissionsResult {
+  PermissionsBlock workflow_permissions = 1;
+  repeated JobPermissions job_permissions = 2;
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractRunCommands
+// ---------------------------------------------------------------------------
+
+message RunCommand {
+  string job_id = 1;
+  int32 step_index = 2;
+  string step_name = 3;
+  // Resolved through the same step -> job -> workflow defaults.run.shell
+  // chain as StepInfo.shell; "" when nothing in the document set it.
+  string shell = 4;
+  string script = 5;
+}
+
+message ExtractRunCommandsResult {
+  repeated RunCommand commands = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// DetectRunners
+// ---------------------------------------------------------------------------
+
+message RunnerUsage {
+  string job_id = 1;
+  // Raw runs-on label(s) for this job, in document order (same shape as
+  // JobBrief.runs_on).
+  repeated string runs_on = 2;
+  // True when any label is an unevaluated `${{ ... }}` expression (e.g.
+  // matrix-driven runs-on) — the actual runner cannot be known statically.
+  bool is_dynamic = 3;
+}
+
+message DetectRunnersResult {
+  repeated RunnerUsage jobs = 1;
+  // Every distinct literal (non-expression) runs-on label used anywhere in
+  // the workflow, alphabetically sorted — the quick "which OS families
+  // does this pipeline touch" answer.
+  repeated string distinct_labels = 2;
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// ExtractReusableWorkflowCalls
+// ---------------------------------------------------------------------------
+
+message ReusableWorkflowCall {
+  string job_id = 1;
+  // The job-level `uses:` value, e.g.
+  // "owner/repo/.github/workflows/reusable.yml@v1" or
+  // "./.github/workflows/reusable.yml".
+  string raw_uses = 2;
+  // Same classification as ActionRef.ref_kind ("sha" | "floating" | "").
+  string ref_kind = 3;
+  bool is_sha_pinned = 4;
+  bool is_local_path = 5;
+  repeated KeyValue with = 6;
+  // `secrets: inherit` shorthand.
+  bool secrets_inherit = 7;
+  // Explicit `secrets:` map entries — the VALUE side is the raw caller-side
+  // expression (often itself a secrets.* reference), never a resolved
+  // value.
+  repeated KeyValue secrets = 8;
+}
+
+message ExtractReusableWorkflowCallsResult {
+  repeated ReusableWorkflowCall calls = 1;
+  string error = 2;
+}
+
+// ---------------------------------------------------------------------------
+// SummarizeWorkflow
+// ---------------------------------------------------------------------------
+
+message SummarizeWorkflowResult {
+  int32 job_count = 1;
+  int32 step_count = 2;
+  int32 trigger_event_count = 3;
+  // Total action-step (`uses:` at step level) invocations, including
+  // repeats of the same action.
+  int32 action_step_count = 4;
+  // Distinct raw `uses:` values among those action-step invocations.
+  int32 distinct_action_count = 5;
+  int32 run_step_count = 6;
+  // Jobs whose own `uses:` calls a reusable workflow.
+  int32 reusable_call_count = 7;
+  string error = 8;
+}
+
+// ---------------------------------------------------------------------------
+// ValidateWorkflow
+// ---------------------------------------------------------------------------
+
+message ValidateWorkflowResult {
+  // True only when issues is empty.
+  bool valid = 1;
+  repeated WorkflowIssue issues = 2;
+  // Set only for a hard parse failure (oversized input, unparseable YAML,
+  // top-level document not a mapping) that prevented any structural
+  // checking at all. A structural problem in an otherwise-parseable
+  // document is reported via issues instead, with valid = false.
+  string error = 3;
+}
+
+// ---------------------------------------------------------------------------
+// DetectSecurityPatterns
+// ---------------------------------------------------------------------------
+
+// One factually-detected security-relevant pattern. This package reports
+// facts only (a pattern was present, here is where) — it never assigns a
+// severity or opinion; interpreting whether a given occurrence is actually
+// risky in context is left to the caller/agent.
+message SecurityFinding {
+  // "" for a workflow-level finding (e.g. pull_request_target).
+  string job_id = 1;
+  // -1 when not tied to a specific step.
+  int32 step_index = 2;
+  // "unpinned_action" | "pull_request_target_trigger" |
+  // "secret_in_run_command".
+  string pattern = 3;
+  string detail = 4;
+}
+
+message DetectSecurityPatternsResult {
+  repeated SecurityFinding findings = 1;
+  string error = 2;
+}
