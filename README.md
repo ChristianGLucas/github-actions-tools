@@ -2,7 +2,7 @@
 
 Deterministic, **GitHub-Actions-semantic** parsing and inspection of GitHub
 Actions workflow YAML (`.github/workflows/*.yml`) — built for the
-[Axiom](https://axiom.co) marketplace, handle `christiangeorgelucas`.
+[Axiom](https://axiomide.com) marketplace, handle `christiangeorgelucas`.
 
 This is deliberately distinct from generic YAML/JSON conversion (see
 [`dataformat-tools`](https://github.com/ChristianGLucas/dataformat-tools)) and
