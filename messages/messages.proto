@@ -82,9 +82,9 @@ message ParseWorkflowResult {
   // "push", "pull_request", "schedule", "workflow_dispatch").
   repeated string trigger_events = 2;
   repeated JobBrief jobs = 3;
-  // Set only for a whole-document failure (oversized input, unparseable
-  // YAML, not a mapping, or missing/malformed `on:`/`jobs:`). Empty on
-  // success, even when the workflow is otherwise unusual.
+  // Set only for a whole-document failure (unparseable YAML, not a
+  // mapping, or missing/malformed `on:`/`jobs:`). Empty on success, even
+  // when the workflow is otherwise unusual.
   string error = 4;
 }
 
@@ -469,10 +469,10 @@ message ValidateWorkflowResult {
   // True only when issues is empty.
   bool valid = 1;
   repeated WorkflowIssue issues = 2;
-  // Set only for a hard parse failure (oversized input, unparseable YAML,
-  // top-level document not a mapping) that prevented any structural
-  // checking at all. A structural problem in an otherwise-parseable
-  // document is reported via issues instead, with valid = false.
+  // Set only for a hard parse failure (unparseable YAML, top-level
+  // document not a mapping) that prevented any structural checking at
+  // all. A structural problem in an otherwise-parseable document is
+  // reported via issues instead, with valid = false.
   string error = 3;
 }
 
