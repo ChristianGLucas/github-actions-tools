@@ -32,32 +32,15 @@
 
 import * as yaml from 'js-yaml';
 
-/** Ceiling for a whole workflow file's raw text (Workflow.yaml /
- * JobRequest.yaml). 2 MB — comfortably under the ~4 MiB Axiom transport cap
- * even after run-script text is echoed back in output fields, and far
- * beyond any real GitHub Actions workflow file (GitHub itself limits a
- * single workflow file to a small fraction of this). */
-export const MAX_YAML_BYTES = 2_000_000;
-
 /** js-yaml's own collection-nesting-depth bound (does not count aliases).
- * Real workflow files rarely nest more than ~10 levels; 100 is generous
- * headroom while still bounding pathological input. */
+ * This guards against a genuine JS call-stack overflow from a pathologically
+ * deeply-nested document (js-yaml's parser is recursive-descent) — not a
+ * memory/DoS ceiling — so it stays even though size/resource limits are
+ * otherwise the platform's job. Real workflow files rarely nest more than
+ * ~10 levels; 100 is generous headroom while still bounding a stack blowup. */
 export const MAX_YAML_DEPTH = 100;
 
-/** js-yaml's own per-document alias-node ceiling — bounds "billion laughs"-
- * style alias amplification. Real workflow files essentially never use YAML
- * anchors/aliases; 200 is generous headroom for the rare legitimate use
- * while bounding pathological expansion. */
-export const MAX_YAML_ALIASES = 200;
-
 export class BoundsError extends Error {}
-
-/** Rejects oversized input (by UTF-8 byte length, not JS string length). */
-export function checkBytes(value: string, field: string, max: number): void {
-  if (Buffer.byteLength(value, 'utf8') > max) {
-    throw new BoundsError(`${field} exceeds ${max} bytes`);
-  }
-}
 
 /** Turns a caught value into a stable error message. */
 export function errorMessage(e: unknown, context: string): string {
@@ -82,14 +65,11 @@ export interface ParsedWorkflow {
  * there is no `---`-separated multi-document convention here, so a
  * multi-document input (or any other YAML/size problem) is reported as a
  * parse error rather than silently taking the first document. Never
- * throws for a parse problem (captured in parseError); throws BoundsError
- * only for oversized input. */
-export function parseWorkflow(text: string, field = 'yaml'): ParsedWorkflow {
-  checkBytes(text, field, MAX_YAML_BYTES);
+ * throws for a parse problem (captured in parseError). */
+export function parseWorkflow(text: string): ParsedWorkflow {
   try {
     const data = yaml.load(text, {
       maxDepth: MAX_YAML_DEPTH,
-      maxAliases: MAX_YAML_ALIASES,
     });
     return { data, parseError: null };
   } catch (e) {
